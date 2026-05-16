@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import Papa from "papaparse";
 
 const AGE_LABELS = [
   "0–4","5–9","10–14","15–19","20–24","25–29","30–34","35–39",
@@ -15,15 +14,14 @@ const AGE_GROUPS: [number, number][] = [
   [75,79],[80,84],[85,89],[90,94],[95,99],[100,120],
 ];
 
+// INSEE central scenario targets (millions) for calibration
 const TARGETS: Record<number, number> = {
-  2026:69.1,2027:69.2,2028:69.3,2029:69.4,2030:69.5,
-  2031:69.6,2032:69.7,2033:69.8,2034:70.0,2035:70.2,
-  2036:70.3,2037:70.4,2038:70.5,2039:70.7,2040:70.9,
-  2041:71.0,2042:71.1,2043:71.2,2044:71.3,2045:71.5,
-  2046:71.6,2047:71.7,2048:71.8,2049:71.9,2050:72.0,
-  2051:72.1,2052:72.2,2053:72.3,2054:72.4,2055:72.5,
-  2056:72.6,2057:72.7,2058:72.8,2059:72.9,2060:73.0,
-  2061:73.1,2062:73.2,2063:73.2,2064:73.3,2065:73.3,
+  2030:68.5,2031:68.7,2032:68.9,2033:69.0,2034:69.2,2035:69.4,
+  2036:69.6,2037:69.8,2038:70.0,2039:70.2,2040:70.4,2041:70.6,
+  2042:70.8,2043:71.0,2044:71.2,2045:71.4,2046:71.5,2047:71.6,
+  2048:71.7,2049:71.8,2050:72.0,2051:72.1,2052:72.2,2053:72.3,
+  2054:72.4,2055:72.5,2056:72.6,2057:72.7,2058:72.8,2059:72.9,
+  2060:73.0,2061:73.1,2062:73.2,2063:73.2,2064:73.3,2065:73.3,
   2066:73.4,2067:73.4,2068:73.5,2069:73.5,2070:73.5,
 };
 
@@ -35,7 +33,7 @@ const ANCHORS: [number, number][] = [
   [95,0.28500],[99,0.45000],
 ];
 
-function buildQx(): Record<number, number> {
+function buildQx() {
   const t: Record<number, number> = {};
   for (let i = 0; i < ANCHORS.length - 1; i++) {
     const [a0, r0] = ANCHORS[i], [a1, r1] = ANCHORS[i + 1];
@@ -44,7 +42,6 @@ function buildQx(): Record<number, number> {
   t[99] = 0.45;
   return t;
 }
-
 const QX = buildQx();
 
 function qx(age: number, offset: number) {
@@ -59,13 +56,13 @@ function toYearData(agePop: AgePop): YearData {
   return AGE_GROUPS.map(([mn, mx], i) => ({
     label: AGE_LABELS[i],
     ageMin: mn,
-    pop: Array.from({ length: mx - mn + 1 }, (_, k) => agePop[mn + k] ?? 0)
+    pop: Array.from({ length: Math.min(mx, 99) - mn + 1 }, (_, k) => agePop[mn + k] ?? 0)
           .reduce((s, v) => s + v, 0),
   }));
 }
 
 function projectYear(current: AgePop, year: number): AgePop {
-  const offset = year - 2026;
+  const offset = year - 2030;
   const nxt: AgePop = {};
   for (let age = 1; age < 99; age++) {
     nxt[age] = Math.max(0, Math.round((current[age - 1] ?? 0) * (1 - qx(age - 1, offset))));
@@ -80,7 +77,8 @@ function projectYear(current: AgePop, year: number): AgePop {
   const mig = Math.round(70_000 / 21);
   for (let a = 20; a <= 40; a++) nxt[a] = (nxt[a] ?? 0) + mig;
   const total = Object.values(nxt).reduce((s, v) => s + v, 0);
-  const scale = total > 0 ? (TARGETS[year] ?? 73.5) * 1e6 / total : 1;
+  const target = (TARGETS[year] ?? 73.5) * 1e6;
+  const scale = total > 0 ? target / total : 1;
   for (const a in nxt) nxt[+a] = Math.round(nxt[+a] * scale);
   return nxt;
 }
@@ -123,54 +121,40 @@ export default function InteractivePyramid() {
   const playRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch("/data/pyramide_age.csv");
-        if (!res.ok) throw new Error("CSV introuvable");
-        const text = await res.text();
+    fetch("/api/projections")
+      .then((r) => r.json())
+      .then((rows: { ANNEE: number; AGE: number; POP: number }[]) => {
+        if (!Array.isArray(rows) || rows.length === 0) throw new Error("Aucune donnée");
 
-        const parsed = Papa.parse<{ ANNEE: string; AGE: string; POP: string }>(text, {
-          header: true, delimiter: ";", skipEmptyLines: true,
-        });
-
-        // Aggregate M+F by year and individual age
+        // Group by year → AgePop
         const raw: Record<number, AgePop> = {};
-        for (const row of parsed.data) {
-          const y = parseInt(row.ANNEE), a = parseInt(row.AGE), p = parseInt(row.POP);
-          if (isNaN(y) || isNaN(a) || isNaN(p)) continue;
-          if (!raw[y]) raw[y] = {};
-          raw[y][a] = (raw[y][a] ?? 0) + p;
+        for (const r of rows) {
+          if (!raw[r.ANNEE]) raw[r.ANNEE] = {};
+          raw[r.ANNEE][r.AGE] = (raw[r.ANNEE][r.AGE] ?? 0) + r.POP;
         }
 
         const byYear: AllData = {};
-        for (let y = 2021; y <= 2026; y++) {
-          if (raw[y]) byYear[y] = toYearData(raw[y]);
-        }
+        const dbYears = Object.keys(raw).map(Number).sort((a, b) => a - b);
+        for (const y of dbYears) byYear[y] = toYearData(raw[y]);
 
-        // Project 2027-2070
-        let current: AgePop = { ...(raw[2026] ?? {}) };
-        for (let y = 2027; y <= 2070; y++) {
+        // Project from last available year to 2070
+        const lastYear = dbYears[dbYears.length - 1];
+        let current: AgePop = { ...raw[lastYear] };
+        for (let y = lastYear + 1; y <= 2070; y++) {
           current = projectYear(current, y);
           byYear[y] = toYearData(current);
         }
 
         setAllData(byYear);
-      } catch (e: any) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     if (playing) {
       playRef.current = setInterval(() => {
-        setYear(y => {
-          if (y >= 2070) { setPlaying(false); return 2070; }
-          return y + 1;
-        });
+        setYear(y => { if (y >= 2070) { setPlaying(false); return 2070; } return y + 1; });
       }, 120);
     } else {
       if (playRef.current) clearInterval(playRef.current);
@@ -185,7 +169,7 @@ export default function InteractivePyramid() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-[500px] text-gray-400 text-sm gap-2">
-      <span className="animate-spin text-lg">⟳</span> Calcul des projections…
+      <span className="animate-spin text-lg">⟳</span> Chargement depuis Supabase…
     </div>
   );
 
@@ -267,7 +251,6 @@ export default function InteractivePyramid() {
           <button
             onClick={() => { setPlaying(p => !p); if (year >= 2070) setYear(2021); }}
             className="flex-shrink-0 w-9 h-9 rounded-full bg-[#003189] text-white flex items-center justify-center hover:bg-[#001F5E] transition-colors shadow-sm"
-            title={playing ? "Pause" : "Lecture"}
           >
             {playing ? "⏸" : "▶"}
           </button>
@@ -295,11 +278,11 @@ export default function InteractivePyramid() {
         <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-500">
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-green-600" />
-            <span>Données réelles INSEE (2021–2026)</span>
+            <span>Données réelles (2021–2026)</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2 h-2 rounded-full bg-purple-600" />
-            <span>Projection scénario central INSEE (2027–2070)</span>
+            <span>Projection scénario central (2027–2070)</span>
           </div>
         </div>
       </div>

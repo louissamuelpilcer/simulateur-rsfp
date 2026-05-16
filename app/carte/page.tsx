@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import PageHeader from "@/components/ui/PageHeader";
 import { DEPARTMENTS } from "@/lib/mock-data";
@@ -19,6 +19,14 @@ const FranceMap = dynamic(() => import("@/components/map/FranceMap"), {
 export default function CartePage() {
   const [selectedKey, setSelectedKey] = useState<IndicatorKey>("agents_pour_mille");
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
+  const [departments, setDepartments] = useState<Department[]>(DEPARTMENTS);
+
+  useEffect(() => {
+    fetch("/api/departments")
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setDepartments(data); })
+      .catch(() => {/* keep mock fallback */});
+  }, []);
 
   const indicator = INDICATORS.find((i) => i.key === selectedKey)!;
 
@@ -27,11 +35,11 @@ export default function CartePage() {
       <PageHeader
         title="Carte des indicateurs par département"
         description="Sélectionnez un indicateur puis survolez ou cliquez sur un département"
-        badge="101 départements"
+        badge="Sources : DGAFP 2023"
       />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar controls */}
+        {/* Sidebar */}
         <div className="w-72 flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto p-4 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
@@ -57,7 +65,6 @@ export default function CartePage() {
             </div>
           </div>
 
-          {/* Selected department detail */}
           {selectedDept && (
             <div className="bg-blue-50 rounded-xl border border-blue-100 p-4 space-y-3">
               <div>
@@ -96,7 +103,7 @@ export default function CartePage() {
         {/* Map */}
         <div className="flex-1 relative bg-gray-50">
           <FranceMap
-            departments={DEPARTMENTS}
+            departments={departments}
             selectedIndicator={indicator}
             onDepartmentClick={setSelectedDept}
           />
