@@ -1,80 +1,27 @@
 "use client";
 
-import { useState } from "react";
 import dynamic from "next/dynamic";
 import PageHeader from "@/components/ui/PageHeader";
 import AgentsEvolutionChart from "@/components/charts/AgentsEvolutionChart";
 
-const PopulationPyramidChart = dynamic(() => import("@/components/charts/PopulationPyramidChart"), {
+const InteractivePyramid = dynamic(() => import("@/components/charts/InteractivePyramid"), {
   ssr: false,
-  loading: () => <div className="h-72 flex items-center justify-center text-gray-400 text-sm">Chargement…</div>,
+  loading: () => <div className="h-[500px] flex items-center justify-center text-gray-400 text-sm">Chargement…</div>,
 });
-
-const PopulationTrendChart = dynamic(() => import("@/components/charts/PopulationTrendChart"), {
-  ssr: false,
-  loading: () => <div className="h-64 flex items-center justify-center text-gray-400 text-sm">Chargement…</div>,
-});
-
-const AVAILABLE_YEARS = [1991, 2000, 2010, 2015, 2020, 2022, 2024, 2026];
 
 export default function ProjectionsPage() {
-  const [year, setYear] = useState(2022);
-  const [compareYear, setCompareYear] = useState<number | undefined>(undefined);
-
   return (
     <div>
       <PageHeader
         title="Projections démographiques"
-        description="Évolution de la pyramide des âges et des effectifs de la fonction publique (1991–2040)"
+        description="Pyramide des âges de la France 2021–2070 — données réelles et scénario central INSEE"
         badge="Sources : INSEE · DGAFP"
       />
 
       <div className="p-6 space-y-6">
-        {/* Population trend */}
+        {/* Interactive pyramid */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h2 className="font-semibold text-gray-800 mb-1">Évolution de la population par tranche d'âge</h2>
-          <p className="text-xs text-gray-400 mb-4">
-            Données réelles 1991–2022, projections INSEE 2023–2026
-          </p>
-          <PopulationTrendChart />
-        </div>
-
-        {/* Pyramid */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <h2 className="font-semibold text-gray-800">Pyramide des âges</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Données INSEE par sexe et tranche d'âge quinquennale</p>
-            </div>
-            <div className="flex gap-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Année principale</label>
-                <select
-                  value={year}
-                  onChange={(e) => setYear(parseInt(e.target.value))}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:ring-2 focus:ring-blue-200 outline-none"
-                >
-                  {AVAILABLE_YEARS.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Comparer avec</label>
-                <select
-                  value={compareYear ?? ""}
-                  onChange={(e) => setCompareYear(e.target.value ? parseInt(e.target.value) : undefined)}
-                  className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:ring-2 focus:ring-blue-200 outline-none"
-                >
-                  <option value="">Aucune</option>
-                  {AVAILABLE_YEARS.filter((y) => y !== year).map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-          <PopulationPyramidChart year={year} compareYear={compareYear} />
+          <InteractivePyramid />
         </div>
 
         {/* Agents evolution */}
