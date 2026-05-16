@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --marianne-blue: #003189;
+  --marianne-blue-dark: #001F5E;
+  --marianne-red: #E1000F;
+}
+
+body {
+  background-color: #F5F5F5;
+  color: #1a1a1a;
+}
+
+/* Recharts tooltip */
+.recharts-tooltip-wrapper {
+  z-index: 1000;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #003189; border-radius: 3px; }
+
+/* Transitions */
+.map-geography {
+  transition: fill 0.15s ease;
+  cursor: pointer;
+}
